@@ -1,0 +1,16 @@
+{
+  "name": "webmcp-omok",
+  "version": "1.0.0",
+  "description": "WebMCP AI Real-time Omok (Gomoku) Game",
+  "main": "server.mjs",
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
+  "keywords": ["webmcp", "ai", "omok", "gomoku"],
+  "author": "tomcat7707",
+  "license": "MIT"
+}

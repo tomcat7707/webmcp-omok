@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>WebMCP AI 실시간 오목 대전 (Human vs AI)</title>
+  <style>
+    :root {
+      --bg: #121820;
+      --card-bg: #1a2330;
+      --border: #2d3b4e;
+      --text: #e6edf3;
+      --accent: #58a6ff;
+      --purple: #bc8cff;
+      --gold: #f1e05a;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background: var(--bg); color: var(--text); padding: 12px; display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
+    
+    header { text-align: center; margin-bottom: 14px; width: 100%; max-width: 600px; }
+    header h1 { font-size: 1.4rem; color: #fff; display: flex; align-items: center; justify-content: center; gap: 8px; }
+    header p { color: #8b949e; font-size: 0.8rem; margin-top: 4px; }
+
+    .game-container {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      align-items: center;
+      max-width: 600px;
+      width: 100%;
+    }
+
+    @media (min-width: 850px) {
+      .game-container {
+        flex-direction: row;
+        align-items: flex-start;
+        max-width: 950px;
+      }
+    }
+
+    /* 바둑판 영역 */
+    .board-card {
+      background: var(--card-bg);
+      border: 2px solid var(--border);
+      border-radius: 14px;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+      width: 100%;
+      max-width: 570px;
+    }
+    #omokCanvas {
+      background: radial-gradient(circle, #e9be7f 0%, #c99653 100%);
+      border: 3px solid #7d4d22;
+      border-radius: 8px;
+      box-shadow: inset 0 0 15px rgba(0,0,0,0.2), 0 6px 20px rgba(0,0,0,0.4);
+      cursor: pointer;
+      width: 100%;
+      height: auto;
+      aspect-ratio: 1 / 1;
+      touch-action: none; /* 모바일 터치 시 화면 스크롤 방지 */
+    }
+
+    /* 사이드 패널 */
+    .side-panel {
+      width: 100%;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .panel-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px;
+    }
+    .panel-card h2 { font-size: 1rem; color: #fff; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+
+    /* 플레이어 현황 */
+    .players { display: flex; justify-content: space-between; gap: 10px; }
+    .player-box {
+      flex: 1;
+      background: #0e1520;
+      border: 2px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 8px;
+      text-align: center;
+      transition: all 0.3s ease;
+    }
+    .player-box.active {
+      border-color: var(--accent);
+      box-shadow: 0 0 15px rgba(88, 166, 255, 0.4);
+      transform: translateY(-2px);
+    }
+    .player-box.ai-active {
+      border-color: var(--purple);
+      box-shadow: 0 0 18px rgba(188, 140, 255, 0.5);
+      transform: translateY(-2px);
+    }
+    .player-avatar { font-size: 1.6rem; margin-bottom: 4px; }
+    .player-name { font-weight: 700; font-size: 0.85rem; }
+    .player-stone { display: inline-flex; align-items: center; gap: 6px; font-size: 0.75rem; margin-top: 4px; color: #8b949e; }
+    .stone-badge { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
+    .stone-black { background: #111; border: 1px solid #666; }
+    .stone-white { background: #fff; border: 1px solid #ccc; box-shadow: 0 0 4px #fff; }
+
+    /* 상태 안내 배너 */
+    .turn-status {
+      background: #0e1520;
+      border-radius: 8px;
+      padding: 10px;
+      text-align: center;
+      font-weight: 700;
+      font-size: 0.95rem;
+      border: 1px solid var(--border);
+    }
+    .turn-human { color: var(--accent); }
+    .turn-ai { color: var(--purple); animation: blink 1s infinite alternate; }
+    @keyframes blink { from { opacity: 0.7; } to { opacity: 1; } }
+
+    /* 대국 로그 */
+    .log-box {
+      background: #090d13;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px;
+      height: 140px;
+      overflow-y: auto;
+      font-family: ui-monospace, Consolas, monospace;
+      font-size: 0.78rem;
+    }
+    .log-entry { margin-bottom: 4px; display: flex; gap: 8px; }
+    .log-num { color: #6e7681; min-width: 24px; }
+    .log-human { color: var(--accent); }
+    .log-ai { color: var(--purple); font-weight: bold; }
+
+    /* 버튼 */
+    .btn-reset {
+      width: 100%;
+      padding: 11px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: #232d3d;
+      color: #fff;
+      font-weight: 700;
+      font-size: 0.88rem;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .btn-reset:hover { background: #324057; }
+
+    /* 승리 모달 */
+    .modal {
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.8);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      padding: 20px;
+    }
+    .modal-content {
+      background: #1a2330;
+      border: 2px solid var(--accent);
+      border-radius: 16px;
+      padding: 26px;
+      text-align: center;
+      max-width: 340px;
+      width: 100%;
+      box-shadow: 0 0 30px rgba(88, 166, 255, 0.5);
+    }
+    .modal-title { font-size: 1.6rem; font-weight: 800; margin-bottom: 8px; }
+    .modal-body { color: #c9d1d9; margin-bottom: 18px; font-size: 0.95rem; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>⚫⚪ WebMCP 실시간 AI 오목 대전</h1>
+    <p>사람은 화면 터치/클릭으로 착수하고, <strong>AI(Antigravity)는 WebMCP <code>place_stone</code> 도구</strong>로 착수합니다.</p>
+  </header>
+
+  <div class="game-container">
+    <!-- 바둑판 -->
+    <div class="board-card">
+      <canvas id="omokCanvas" width="570" height="570"></canvas>
+    </div>
+
+    <!-- 사이드 패널 -->
+    <div class="side-panel">
+      <!-- 플레이어 정보 -->
+      <div class="panel-card">
+        <h2>대국자 정보</h2>
+        <div class="players">
+          <div class="player-box active" id="humanBox">
+            <div class="player-avatar">👤</div>
+            <div class="player-name">사용자 (당신)</div>
+            <div class="player-stone"><span class="stone-badge stone-black"></span> 흑돌 (선공)</div>
+          </div>
+          <div class="player-box" id="aiBox">
+            <div class="player-avatar">🤖</div>
+            <div class="player-name">Antigravity AI</div>
+            <div class="player-stone"><span class="stone-badge stone-white"></span> 백돌 (후공)</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 차례 및 턴 안내 -->
+      <div class="turn-status" id="turnStatus">
+        <span class="turn-human">당신의 차례입니다 (바둑판을 터치하세요)</span>
+      </div>
+
+      <!-- 착수 로그 -->
+      <div class="panel-card">
+        <h2>
+          <span>대국 기록 (WebMCP Trace)</span>
+          <span id="moveCountText" style="font-size: 0.8rem; color: #8b949e;">총 0수</span>
+        </h2>
+        <div class="log-box" id="gameLog"></div>
+      </div>
+
+      <button class="btn-reset" onclick="resetBoard()">🔄 대국 다시 시작</button>
+    </div>
+  </div>
+
+  <!-- 승리 모달 -->
+  <div class="modal" id="winModal">
+    <div class="modal-content">
+      <div class="modal-title" id="winTitle">승리!</div>
+      <div class="modal-body" id="winDesc">축하합니다!</div>
+      <button class="btn-reset" onclick="resetBoard()">새 대국 시작</button>
+    </div>
+  </div>
+
+  <script>
+    const BOARD_SIZE = 15;
+    const PADDING = 25;
+    const CELL_SIZE = 37.14;
+    const canvas = document.getElementById('omokCanvas');
+    const ctx = canvas.getContext('2d');
+
+    let board = Array(BOARD_SIZE).fill(0).map(() => Array(BOARD_SIZE).fill(0));
+    let currentTurn = 1; // 1: 사람(흑), 2: AI(백)
+    let moveHistory = [];
+    let gameOver = false;
+
+    function playStoneSound() {
+      try {
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(320, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(80, audioCtx.currentTime + 0.08);
+        gain.gain.setValueAtTime(0.4, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.08);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.08);
+      } catch (e) {}
+    }
+
+    function drawBoard() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      ctx.lineWidth = 1.2;
+      ctx.strokeStyle = '#5c3a21';
+
+      for (let i = 0; i < BOARD_SIZE; i++) {
+        const p = PADDING + i * CELL_SIZE;
+        ctx.beginPath();
+        ctx.moveTo(PADDING, p);
+        ctx.lineTo(PADDING + (BOARD_SIZE - 1) * CELL_SIZE, p);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(p, PADDING);
+        ctx.lineTo(p, PADDING + (BOARD_SIZE - 1) * CELL_SIZE);
+        ctx.stroke();
+      }
+
+      const stars = [[3, 3], [11, 3], [7, 7], [3, 11], [11, 11]];
+      ctx.fillStyle = '#5c3a21';
+      for (const [sx, sy] of stars) {
+        ctx.beginPath();
+        ctx.arc(PADDING + sx * CELL_SIZE, PADDING + sy * CELL_SIZE, 3.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      for (let y = 0; y < BOARD_SIZE; y++) {
+        for (let x = 0; x < BOARD_SIZE; x++) {
+          if (board[y][x] !== 0) {
+            drawStone(x, y, board[y][x]);
+          }
+        }
+      }
+
+      if (moveHistory.length > 0) {
+        const last = moveHistory[moveHistory.length - 1];
+        const px = PADDING + last.x * CELL_SIZE;
+        const py = PADDING + last.y * CELL_SIZE;
+        ctx.strokeStyle = '#ff3366';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.arc(px, py, 7, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    }
+
+    function drawStone(x, y, type) {
+      const px = PADDING + x * CELL_SIZE;
+      const py = PADDING + y * CELL_SIZE;
+      const radius = CELL_SIZE * 0.44;
+
+      ctx.beginPath();
+      ctx.arc(px + 2, py + 3, radius, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.arc(px, py, radius, 0, Math.PI * 2);
+      const grad = ctx.createRadialGradient(px - radius * 0.3, py - radius * 0.3, radius * 0.1, px, py, radius);
+
+      if (type === 1) {
+        grad.addColorStop(0, '#555');
+        grad.addColorStop(0.7, '#1a1a1a');
+        grad.addColorStop(1, '#050505');
+      } else {
+        grad.addColorStop(0, '#ffffff');
+        grad.addColorStop(0.8, '#e6e6e6');
+        grad.addColorStop(1, '#cccccc');
+      }
+
+      ctx.fillStyle = grad;
+      ctx.fill();
+    }
+
+    function checkWin(x, y, color) {
+      const dirs = [[1, 0], [0, 1], [1, 1], [1, -1]];
+      for (const [dx, dy] of dirs) {
+        let count = 1;
+        for (let step = 1; step < 5; step++) {
+          const nx = x + dx * step;
+          const ny = y + dy * step;
+          if (nx >= 0 && nx < BOARD_SIZE && ny >= 0 && ny < BOARD_SIZE && board[ny][nx] === color) count++;
+          else break;
+        }
+        for (let step = 1; step < 5; step++) {
+          const nx = x - dx * step;
+          const ny = y - dy * step;
+          if (nx >= 0 && nx < BOARD_SIZE && ny >= 0 && ny < BOARD_SIZE && board[ny][nx] === color) count++;
+          else break;
+        }
+        if (count >= 5) return true;
+      }
+      return false;
+    }
+
+    function appendLog(turnNum, actor, x, y, note = '') {
+      const logBox = document.getElementById('gameLog');
+      const div = document.createElement('div');
+      div.className = 'log-entry';
+      const colLetter = String.fromCharCode(65 + x);
+      const rowNum = 15 - y;
+      const coord = `${colLetter}${rowNum} (${x}, ${y})`;
+
+      if (actor === 'Human') {
+        div.innerHTML = `<span class="log-num">#${turnNum}</span> <span class="log-human">👤 사용자(흑)</span>: ${coord} ${note}`;
+      } else {
+        div.innerHTML = `<span class="log-num">#${turnNum}</span> <span class="log-ai">🤖 AI(백)</span>: ${coord} ${note}`;
+      }
+      logBox.prepend(div);
+      document.getElementById('moveCountText').textContent = `총 ${moveHistory.length}수`;
+    }
+
+    // WebMCP 도구 함수 정의
+    window.omokTools = {
+      get_board_state: async () => ({
+        board,
+        currentTurn: currentTurn === 1 ? 'human' : 'ai',
+        moveCount: moveHistory.length,
+        lastMove: moveHistory[moveHistory.length - 1] || null,
+        gameOver
+      }),
+      place_stone: async ({ x, y, color = 'white' }) => {
+        if (gameOver) return { success: false, message: '게임 종료' };
+        if (board[y][x] !== 0) return { success: false, message: '중복 위치' };
+
+        const colorVal = (color === 'black' || color === 1) ? 1 : 2;
+        board[y][x] = colorVal;
+        moveHistory.push({ x, y, color: colorVal });
+        playStoneSound();
+        drawBoard();
+
+        const isWin = checkWin(x, y, colorVal);
+        appendLog(moveHistory.length, colorVal === 1 ? 'Human' : 'AI', x, y, isWin ? '🏆 승리!' : '');
+
+        if (isWin) {
+          gameOver = true;
+          showWinModal(colorVal === 1 ? '🎉 당신의 승리!' : '🤖 AI의 승리!', colorVal === 1 ? 'AI를 멋지게 꺾으셨습니다!' : '아쉽네요! AI가 5목을 완성했습니다.');
+          return { success: true, x, y, isWin: true };
+        }
+
+        currentTurn = (colorVal === 1) ? 2 : 1;
+        updateTurnDisplay();
+        return { success: true, x, y, isWin: false };
+      },
+      reset_game: async () => { resetBoard(); return { success: true }; }
+    };
+
+    if (typeof document.modelContext?.registerTool === 'function') {
+      document.modelContext.registerTool({
+        name: 'get_board_state',
+        title: '바둑판 상태 조회',
+        description: '현재 15x15 오목판 상태와 차례를 조회합니다.',
+        inputSchema: { type: 'object', properties: {} },
+        execute: window.omokTools.get_board_state
+      });
+      document.modelContext.registerTool({
+        name: 'place_stone',
+        title: '오목 돌 착수',
+        description: '지정한 바둑판 좌표(x, y)에 AI의 백돌을 착수합니다.',
+        inputSchema: { type: 'object', properties: { x: { type: 'integer' }, y: { type: 'integer' } }, required: ['x', 'y'] },
+        execute: window.omokTools.place_stone
+      });
+    }
+
+    function updateTurnDisplay() {
+      const turnStatus = document.getElementById('turnStatus');
+      const humanBox = document.getElementById('humanBox');
+      const aiBox = document.getElementById('aiBox');
+
+      if (currentTurn === 1) {
+        turnStatus.innerHTML = '<span class="turn-human">당신의 차례입니다 (바둑판을 터치하세요)</span>';
+        humanBox.className = 'player-box active';
+        aiBox.className = 'player-box';
+      } else {
+        turnStatus.innerHTML = '<span class="turn-ai">🤖 AI가 수를 생각하고 있습니다...</span>';
+        humanBox.className = 'player-box';
+        aiBox.className = 'player-box ai-active';
+      }
+    }
+
+    function showWinModal(title, desc) {
+      document.getElementById('winTitle').textContent = title;
+      document.getElementById('winDesc').textContent = desc;
+      document.getElementById('winModal').style.display = 'flex';
+    }
+
+    function resetBoard() {
+      board = Array(BOARD_SIZE).fill(0).map(() => Array(BOARD_SIZE).fill(0));
+      moveHistory = [];
+      currentTurn = 1;
+      gameOver = false;
+      document.getElementById('gameLog').innerHTML = '';
+      document.getElementById('moveCountText').textContent = '총 0수';
+      document.getElementById('winModal').style.display = 'none';
+      updateTurnDisplay();
+      drawBoard();
+    }
+
+    // 마우스 및 모바일 터치 착수 공통 핸들러
+    function handlePointerAction(clientX, clientY) {
+      if (gameOver || currentTurn !== 1) return;
+
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = canvas.width / rect.width;
+      const scaleY = canvas.height / rect.height;
+      const mouseX = (clientX - rect.left) * scaleX;
+      const mouseY = (clientY - rect.top) * scaleY;
+
+      const x = Math.round((mouseX - PADDING) / CELL_SIZE);
+      const y = Math.round((mouseY - PADDING) / CELL_SIZE);
+
+      if (x >= 0 && x < BOARD_SIZE && y >= 0 && y < BOARD_SIZE && board[y][x] === 0) {
+        board[y][x] = 1;
+        moveHistory.push({ x, y, color: 1 });
+        playStoneSound();
+        drawBoard();
+
+        const isWin = checkWin(x, y, 1);
+        appendLog(moveHistory.length, 'Human', x, y, isWin ? '🏆 승리!' : '');
+
+        if (isWin) {
+          gameOver = true;
+          showWinModal('🎉 당신의 승리!', '완벽한 5목 완성! AI를 이기셨습니다.');
+          return;
+        }
+
+        currentTurn = 2;
+        updateTurnDisplay();
+
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'PLAYER_MOVE', x, y, board, moveHistory }));
+        }
+      }
+    }
+
+    // PC 클릭 및 모바일 터치 이벤트 바인딩
+    canvas.addEventListener('click', (e) => handlePointerAction(e.clientX, e.clientY));
+    canvas.addEventListener('touchend', (e) => {
+      e.preventDefault();
+      if (e.changedTouches.length > 0) {
+        const touch = e.changedTouches[0];
+        handlePointerAction(touch.clientX, touch.clientY);
+      }
+    }, { passive: false });
+
+    // WebSocket 연결 (현재 접속 호스트 자동 연동)
+    const wsUrl = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host;
+    const ws = new WebSocket(wsUrl);
+
+    ws.onmessage = async (evt) => {
+      try {
+        const msg = JSON.parse(evt.data);
+        if (msg.tool === 'place_stone') {
+          const result = await window.omokTools.place_stone(msg.args);
+          ws.send(JSON.stringify({ type: 'tool_response', reqId: msg.reqId, tool: 'place_stone', result }));
+        }
+      } catch (err) {}
+    };
+
+    drawBoard();
+  </script>
+</body>
+</html>
