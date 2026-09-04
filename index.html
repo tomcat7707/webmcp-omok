@@ -3,29 +3,72 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>WebMCP AI 실시간 오목 대전 & 라이브 코멘터리</title>
+  <title>WebMCP × Google Gemini 실시간 AI 오목 대전</title>
   <style>
     :root {
-      --bg: #10141d;
-      --card-bg: #18202c;
-      --border: #283548;
-      --text: #e6edf3;
+      --bg: #0d1117;
+      --card-bg: #161b22;
+      --border: #30363d;
+      --text: #c9d1d9;
       --accent: #58a6ff;
       --purple: #bc8cff;
       --green: #3fb950;
       --red: #f85149;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-    body { background: var(--bg); color: var(--text); padding: 16px; display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
+    body { background: var(--bg); color: var(--text); padding: 14px; display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
     
-    header { text-align: center; margin-bottom: 16px; width: 100%; max-width: 980px; }
-    header h1 { font-size: 1.6rem; color: #fff; display: flex; align-items: center; justify-content: center; gap: 8px; }
-    header p { color: #8b949e; font-size: 0.85rem; margin-top: 4px; }
+    header { text-align: center; margin-bottom: 12px; width: 100%; max-width: 980px; }
+    header h1 { font-size: 1.5rem; color: #fff; display: flex; align-items: center; justify-content: center; gap: 8px; }
+    header p { color: #8b949e; font-size: 0.82rem; margin-top: 4px; }
+
+    /* API Key 설정 바 */
+    .api-key-bar {
+      background: #161b22;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 14px;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      width: 100%;
+      max-width: 980px;
+      margin-bottom: 14px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      flex-wrap: wrap;
+    }
+    .api-key-bar label { font-size: 0.85rem; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 6px; }
+    .api-key-input {
+      flex: 1;
+      min-width: 240px;
+      background: #0d1117;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 7px 10px;
+      color: #fff;
+      font-size: 0.85rem;
+      font-family: monospace;
+    }
+    .api-key-input:focus { outline: none; border-color: var(--accent); }
+    .btn-save-key {
+      background: #238636;
+      border: 1px solid rgba(240,246,252,0.1);
+      color: #fff;
+      padding: 7px 14px;
+      border-radius: 6px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .btn-save-key:hover { background: #2ea043; }
+    .key-status { font-size: 0.8rem; font-weight: 600; }
+    .key-status.ready { color: var(--green); }
+    .key-status.missing { color: #d29922; }
 
     .game-container {
       display: flex;
       flex-direction: column;
-      gap: 20px;
+      gap: 16px;
       align-items: center;
       max-width: 980px;
       width: 100%;
@@ -38,12 +81,12 @@
       }
     }
 
-    /* 바둑판 영역 */
+    /* 바둑판 */
     .board-card {
       background: var(--card-bg);
       border: 2px solid var(--border);
       border-radius: 14px;
-      padding: 12px;
+      padding: 10px;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -69,52 +112,41 @@
       flex: 1;
       display: flex;
       flex-direction: column;
-      gap: 14px;
+      gap: 12px;
     }
     .panel-card {
       background: var(--card-bg);
       border: 1px solid var(--border);
       border-radius: 12px;
-      padding: 16px;
+      padding: 14px;
     }
-    .panel-card h2 { font-size: 1rem; color: #fff; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+    .panel-card h2 { font-size: 0.95rem; color: #fff; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
 
-    /* AI 실시간 코멘터리 말풍선 박스 (핵심 신설!) */
+    /* AI 코멘터리 카드 */
     .ai-comment-card {
-      background: linear-gradient(145deg, #1f1b35 0%, #161b26 100%);
+      background: linear-gradient(145deg, #1e1938 0%, #161b22 100%);
       border: 2px solid var(--purple);
-      box-shadow: 0 0 20px rgba(188, 140, 255, 0.25);
+      box-shadow: 0 0 20px rgba(188, 140, 255, 0.2);
     }
-    .ai-header {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin-bottom: 10px;
-    }
+    .ai-header { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
     .ai-avatar {
-      width: 36px;
-      height: 36px;
+      width: 36px; height: 36px;
       background: #312154;
       border: 2px solid var(--purple);
       border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      display: flex; align-items: center; justify-content: center;
       font-size: 1.2rem;
-      animation: pulse 2s infinite;
     }
-    @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.08); } 100% { transform: scale(1); } }
-    .ai-name-box { flex: 1; }
     .ai-name { font-weight: 800; font-size: 0.95rem; color: #d2a8ff; }
-    .ai-status-badge { font-size: 0.72rem; color: #3fb950; font-weight: 600; }
+    .ai-status-badge { font-size: 0.75rem; color: #3fb950; font-weight: 600; }
 
     .ai-bubble {
       background: #0d1117;
       border: 1px solid #30363d;
       border-radius: 10px;
-      padding: 14px;
-      font-size: 0.95rem;
-      line-height: 1.6;
+      padding: 12px;
+      font-size: 0.92rem;
+      line-height: 1.5;
       color: #f0f6fc;
       min-height: 70px;
       position: relative;
@@ -130,30 +162,28 @@
     }
 
     /* 플레이어 현황 */
-    .players { display: flex; justify-content: space-between; gap: 10px; }
+    .players { display: flex; justify-content: space-between; gap: 8px; }
     .player-box {
       flex: 1;
       background: #0e1520;
       border: 2px solid var(--border);
       border-radius: 10px;
-      padding: 10px 8px;
+      padding: 8px 6px;
       text-align: center;
       transition: all 0.3s ease;
     }
     .player-box.active {
       border-color: var(--accent);
-      box-shadow: 0 0 15px rgba(88, 166, 255, 0.4);
-      transform: translateY(-2px);
+      box-shadow: 0 0 12px rgba(88, 166, 255, 0.4);
     }
     .player-box.ai-active {
       border-color: var(--purple);
-      box-shadow: 0 0 18px rgba(188, 140, 255, 0.5);
-      transform: translateY(-2px);
+      box-shadow: 0 0 14px rgba(188, 140, 255, 0.5);
     }
-    .player-avatar { font-size: 1.5rem; margin-bottom: 4px; }
-    .player-name { font-weight: 700; font-size: 0.85rem; }
-    .player-stone { display: inline-flex; align-items: center; gap: 6px; font-size: 0.75rem; margin-top: 4px; color: #8b949e; }
-    .stone-badge { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
+    .player-avatar { font-size: 1.4rem; margin-bottom: 2px; }
+    .player-name { font-weight: 700; font-size: 0.8rem; }
+    .player-stone { font-size: 0.72rem; margin-top: 2px; color: #8b949e; }
+    .stone-badge { width: 10px; height: 10px; border-radius: 50%; display: inline-block; vertical-align: middle; }
     .stone-black { background: #111; border: 1px solid #666; }
     .stone-white { background: #fff; border: 1px solid #ccc; box-shadow: 0 0 4px #fff; }
 
@@ -162,11 +192,11 @@
       background: #090d13;
       border: 1px solid var(--border);
       border-radius: 8px;
-      padding: 10px;
-      height: 140px;
+      padding: 8px;
+      height: 120px;
       overflow-y: auto;
       font-family: ui-monospace, Consolas, monospace;
-      font-size: 0.78rem;
+      font-size: 0.75rem;
     }
     .log-entry { margin-bottom: 4px; display: flex; gap: 8px; }
     .log-num { color: #6e7681; min-width: 24px; }
@@ -175,17 +205,16 @@
 
     .btn-reset {
       width: 100%;
-      padding: 11px;
+      padding: 10px;
       border-radius: 8px;
       border: 1px solid var(--border);
-      background: #232d3d;
+      background: #21262d;
       color: #fff;
       font-weight: 700;
-      font-size: 0.88rem;
+      font-size: 0.85rem;
       cursor: pointer;
-      transition: background 0.2s;
     }
-    .btn-reset:hover { background: #324057; }
+    .btn-reset:hover { background: #30363d; }
 
     /* 승리 모달 */
     .modal {
@@ -198,25 +227,33 @@
       padding: 20px;
     }
     .modal-content {
-      background: #1a2330;
+      background: #161b22;
       border: 2px solid var(--accent);
       border-radius: 16px;
-      padding: 26px;
+      padding: 24px;
       text-align: center;
-      max-width: 340px;
+      max-width: 320px;
       width: 100%;
       box-shadow: 0 0 30px rgba(88, 166, 255, 0.5);
     }
-    .modal-title { font-size: 1.6rem; font-weight: 800; margin-bottom: 8px; }
-    .modal-body { color: #c9d1d9; margin-bottom: 18px; font-size: 0.95rem; }
+    .modal-title { font-size: 1.5rem; font-weight: 800; margin-bottom: 6px; }
+    .modal-body { color: #c9d1d9; margin-bottom: 16px; font-size: 0.9rem; }
   </style>
 </head>
 <body>
 
   <header>
-    <h1>⚫⚪ WebMCP 실시간 AI 오목 & 라이브 코멘터리</h1>
-    <p>사용자님이 한 수를 둘 때마다, <strong>채팅창의 Antigravity AI가 직접 수읽기 분석 코멘트를 날리고 착수</strong>합니다.</p>
+    <h1>⚫⚪ WebMCP × Google Gemini 실시간 AI 오목</h1>
+    <p>착수 즉시 <strong>Webhook</strong>이 발송되어, <strong>진짜 Google Gemini 2.0 AI</strong>가 수읽기 코멘트와 함께 백돌을 둡니다.</p>
   </header>
+
+  <!-- API Key 입력 바 -->
+  <div class="api-key-bar">
+    <label for="apiKeyInput">🔑 Gemini API Key:</label>
+    <input type="password" id="apiKeyInput" class="api-key-input" placeholder="AI Studio에서 발급받은 Gemini API 키 입력 (AIzaSy...)">
+    <button class="btn-save-key" onclick="saveApiKey()">키 저장</button>
+    <span class="key-status missing" id="keyStatusText">⚠️ API 키 필요</span>
+  </div>
 
   <div class="game-container">
     <!-- 바둑판 -->
@@ -227,17 +264,17 @@
     <!-- 사이드 패널 -->
     <div class="side-panel">
       
-      <!-- 🤖 AI 실시간 코멘터리 카드 (핵심!) -->
+      <!-- 🤖 Gemini 실시간 코멘터리 카드 -->
       <div class="panel-card ai-comment-card">
         <div class="ai-header">
-          <div class="ai-avatar" id="aiAvatar">🤖</div>
+          <div class="ai-avatar" id="aiAvatar">✨</div>
           <div class="ai-name-box">
-            <div class="ai-name">Antigravity AI (Gemini)</div>
-            <div class="ai-status-badge" id="aiLiveStatus">● 대기 중 (당신의 수를 기다립니다)</div>
+            <div class="ai-name">Google Gemini 2.0 Flash</div>
+            <div class="ai-status-badge" id="aiLiveStatus">● 준비 완료 (수읽기 대기 중)</div>
           </div>
         </div>
         <div class="ai-bubble" id="aiBubble">
-          "반갑습니다! 첫 수를 바둑판에 두시면, 제가 수를 읽고 어떤 전략인지 코멘트를 남기며 직접 백돌을 놓겠습니다. 시작해 보시죠!"
+          "상단에 Gemini API 키를 입력하시고 바둑판에 첫 수를 두어보세요! Webhook을 통해 실시간으로 수읽기 분석을 남기며 대국하겠습니다."
         </div>
       </div>
 
@@ -252,7 +289,7 @@
           </div>
           <div class="player-box" id="aiBox">
             <div class="player-avatar">🤖</div>
-            <div class="player-name">Antigravity (백돌)</div>
+            <div class="player-name">Gemini AI (백돌)</div>
             <div class="player-stone"><span class="stone-badge stone-white"></span> 후공</div>
           </div>
         </div>
@@ -291,6 +328,33 @@
     let currentTurn = 1; // 1: 사람(흑), 2: AI(백)
     let moveHistory = [];
     let gameOver = false;
+
+    // API 키 관리
+    function loadApiKey() {
+      const key = localStorage.getItem('GEMINI_API_KEY') || '';
+      if (key) {
+        document.getElementById('apiKeyInput').value = key;
+        document.getElementById('keyStatusText').textContent = '✅ API 키 준비 완료';
+        document.getElementById('keyStatusText').className = 'key-status ready';
+      }
+    }
+
+    function saveApiKey() {
+      const key = document.getElementById('apiKeyInput').value.trim();
+      if (!key) {
+        alert('API 키를 입력해주세요!');
+        return;
+      }
+      localStorage.setItem('GEMINI_API_KEY', key);
+      document.getElementById('keyStatusText').textContent = '✅ API 키 준비 완료';
+      document.getElementById('keyStatusText').className = 'key-status ready';
+      document.getElementById('aiBubble').textContent = 'API 키가 저장되었습니다! 바둑판에 흑돌 첫 수를 두어주세요!';
+      
+      // 서버로 API 키 전달
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'SET_API_KEY', apiKey: key }));
+      }
+    }
 
     function playStoneSound() {
       try {
@@ -416,15 +480,13 @@
       if (actor === 'Human') {
         div.innerHTML = `<span class="log-num">#${turnNum}</span> <span class="log-human">👤 사용자(흑)</span>: ${coord} ${note}`;
       } else {
-        div.innerHTML = `<span class="log-num">#${turnNum}</span> <span class="log-ai">🤖 AI(백)</span>: ${coord} ${note}`;
+        div.innerHTML = `<span class="log-num">#${turnNum}</span> <span class="log-ai">✨ Gemini(백)</span>: ${coord} ${note}`;
       }
       logBox.prepend(div);
       document.getElementById('moveCountText').textContent = `총 ${moveHistory.length}수`;
     }
 
-    // -------------------------------------------------------------
-    // WebMCP 도구 함수 정의 (AI 전용 인터페이스)
-    // -------------------------------------------------------------
+    // WebMCP 도구 함수 정의
     window.omokTools = {
       get_board_state: async () => ({
         board,
@@ -433,15 +495,12 @@
         lastMove: moveHistory[moveHistory.length - 1] || null,
         gameOver
       }),
-
-      // 1. AI 코멘트 게시 도구 (신규!)
       post_ai_comment: async ({ message, emotion = 'thinking' }) => {
         const bubble = document.getElementById('aiBubble');
         const status = document.getElementById('aiLiveStatus');
         const avatar = document.getElementById('aiAvatar');
 
         bubble.textContent = message;
-        bubble.style.borderColor = 'var(--purple)';
 
         if (emotion === 'attack') {
           avatar.textContent = '⚔️';
@@ -456,16 +515,14 @@
           status.textContent = '● 승리 선언!';
           status.style.color = 'var(--green)';
         } else {
-          avatar.textContent = '🤖';
-          status.textContent = '● 분석 및 착수 완료';
+          avatar.textContent = '✨';
+          status.textContent = '● 수읽기 완료';
           status.style.color = 'var(--purple)';
         }
 
         return { success: true, message };
       },
-
-      // 2. AI 착수 도구
-      place_stone: async ({ x, y, color = 'white', comment = '' }) => {
+      place_stone: async ({ x, y, color = 'white', comment = '', emotion = 'thinking' }) => {
         if (gameOver) return { success: false, message: '게임 종료' };
         if (board[y][x] !== 0) return { success: false, message: '중복 위치' };
 
@@ -476,7 +533,7 @@
         drawBoard();
 
         if (comment) {
-          window.omokTools.post_ai_comment({ message: comment });
+          window.omokTools.post_ai_comment({ message: comment, emotion });
         }
 
         const isWin = checkWin(x, y, colorVal);
@@ -484,7 +541,7 @@
 
         if (isWin) {
           gameOver = true;
-          showWinModal(colorVal === 1 ? '🎉 당신의 승리!' : '🤖 AI의 승리!', colorVal === 1 ? 'AI를 멋지게 꺾으셨습니다!' : 'AI가 5목을 완성했습니다.');
+          showWinModal(colorVal === 1 ? '🎉 당신의 승리!' : '✨ Gemini의 승리!', colorVal === 1 ? '완벽한 5목! AI를 꺾으셨습니다.' : 'Gemini AI가 5목을 완성했습니다.');
           return { success: true, x, y, isWin: true };
         }
 
@@ -492,49 +549,8 @@
         updateTurnDisplay();
         return { success: true, x, y, isWin: false };
       },
-
       reset_game: async () => { resetBoard(); return { success: true }; }
     };
-
-    // W3C WebMCP 등록
-    if (typeof document.modelContext?.registerTool === 'function') {
-      document.modelContext.registerTool({
-        name: 'get_board_state',
-        title: '바둑판 상태 조회',
-        description: '현재 바둑판 상태와 마지막 착수 위치를 확인합니다.',
-        inputSchema: { type: 'object', properties: {} },
-        execute: window.omokTools.get_board_state
-      });
-      document.modelContext.registerTool({
-        name: 'post_ai_comment',
-        title: 'AI 코멘트 전송',
-        description: '화면의 AI 말풍선에 수읽기 전략과 분석 멘트를 남깁니다.',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            message: { type: 'string', description: '화면에 띄울 코멘트' },
-            emotion: { type: 'string', enum: ['thinking', 'attack', 'defend', 'win'] }
-          },
-          required: ['message']
-        },
-        execute: window.omokTools.post_ai_comment
-      });
-      document.modelContext.registerTool({
-        name: 'place_stone',
-        title: '오목 돌 착수',
-        description: '지정 좌표(x, y)에 백돌을 착수하고 화면에 반영합니다.',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            x: { type: 'integer' },
-            y: { type: 'integer' },
-            comment: { type: 'string' }
-          },
-          required: ['x', 'y']
-        },
-        execute: window.omokTools.place_stone
-      });
-    }
 
     function updateTurnDisplay() {
       const humanBox = document.getElementById('humanBox');
@@ -564,13 +580,17 @@
       document.getElementById('moveCountText').textContent = '총 0수';
       document.getElementById('winModal').style.display = 'none';
       document.getElementById('aiBubble').textContent = '대국이 리셋되었습니다. 흑돌 첫 수를 두어주세요!';
-      document.getElementById('aiLiveStatus').textContent = '● 대기 중 (당신의 수를 기다립니다)';
-      document.getElementById('aiAvatar').textContent = '🤖';
+      document.getElementById('aiLiveStatus').textContent = '● 준비 완료 (수읽기 대기 중)';
+      document.getElementById('aiAvatar').textContent = '✨';
       updateTurnDisplay();
       drawBoard();
+
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'RESET' }));
+      }
     }
 
-    // 마우스 및 터치 착수
+    // 마우스 및 터치 착수 (착수 시 Webhook 자동 발송!)
     function handlePointerAction(clientX, clientY) {
       if (gameOver || currentTurn !== 1) return;
 
@@ -601,16 +621,19 @@
         currentTurn = 2;
         updateTurnDisplay();
 
-        // 상태를 AI 코멘터에게 알림
-        document.getElementById('aiLiveStatus').textContent = '● Antigravity AI 수읽기 중...';
-        document.getElementById('aiBubble').textContent = `사용자님이 ${String.fromCharCode(65 + x)}${15 - y} 자리에 두셨습니다. 수를 분석하고 있습니다...`;
+        // Gemini 수읽기 알림
+        document.getElementById('aiLiveStatus').textContent = '● Gemini 2.0 수읽기 중...';
+        document.getElementById('aiBubble').textContent = `사용자님이 ${String.fromCharCode(65 + x)}${15 - y} 자리에 두셨습니다. Webhook을 통해 Gemini가 최적의 수와 해설을 계산 중입니다...`;
 
+        // 🚀 Webhook 발송 (서버를 통해 Gemini API로 즉시 전달!)
+        const apiKey = localStorage.getItem('GEMINI_API_KEY') || '';
         if (ws && ws.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify({
-            type: 'USER_MOVED',
+            type: 'WEBHOOK_MOVE',
             x, y,
             board,
-            moveHistory
+            moveHistory,
+            apiKey
           }));
         }
       }
@@ -628,24 +651,25 @@
     const wsUrl = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host;
     const ws = new WebSocket(wsUrl);
 
+    ws.onopen = () => {
+      const apiKey = localStorage.getItem('GEMINI_API_KEY') || '';
+      if (apiKey) {
+        ws.send(JSON.stringify({ type: 'SET_API_KEY', apiKey }));
+      }
+    };
+
     ws.onmessage = async (evt) => {
       try {
         const msg = JSON.parse(evt.data);
-        if (msg.tool === 'post_ai_comment') {
-          const res = await window.omokTools.post_ai_comment(msg.args);
-          ws.send(JSON.stringify({ type: 'tool_response', reqId: msg.reqId, result: res }));
-        } else if (msg.tool === 'place_stone') {
-          const res = await window.omokTools.place_stone(msg.args);
-          ws.send(JSON.stringify({ type: 'tool_response', reqId: msg.reqId, result: res }));
-        } else if (msg.tool === 'get_board_state') {
-          const res = await window.omokTools.get_board_state();
-          ws.send(JSON.stringify({ type: 'tool_response', reqId: msg.reqId, result: res }));
-        } else if (msg.tool === 'reset_game') {
-          resetBoard();
+        if (msg.tool === 'place_stone') {
+          await window.omokTools.place_stone(msg.args);
+        } else if (msg.tool === 'post_ai_comment') {
+          await window.omokTools.post_ai_comment(msg.args);
         }
       } catch (err) {}
     };
 
+    loadApiKey();
     drawBoard();
   </script>
 </body>
