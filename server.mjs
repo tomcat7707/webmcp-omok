@@ -7,11 +7,12 @@ const PORT = 8765;
 const HTML_FILE = path.join(process.cwd(), 'omok', 'index.html');
 
 let savedApiKey = process.env.GEMINI_API_KEY || '';
+let savedModel = 'gemini-3.6-flash';
 
 // -------------------------------------------------------------
-// Google Gemini API 호출 함수 (Webhook ➔ Gemini 2.0)
+// Google Gemini API 호출 함수 (선택된 모델 동적 호출)
 // -------------------------------------------------------------
-async function callGeminiForOmok(board, moveHistory, apiKey) {
+async function callGeminiForOmok(board, moveHistory, apiKey, modelName = 'gemini-3.6-flash') {
   const key = apiKey || savedApiKey;
   if (!key) {
     throw new Error('API 키가 설정되지 않았습니다.');
@@ -21,7 +22,7 @@ async function callGeminiForOmok(board, moveHistory, apiKey) {
   const colLetter = String.fromCharCode(65 + lastMove.x);
   const rowNum = 15 - lastMove.y;
 
-  // 바둑판 시각화 텍스트 생성
+  // 바둑판 텍스트 렌더링
   let boardStr = '   A B C D E F G H I J K L M N O\n';
   for (let y = 0; y < 15; y++) {
     const r = (15 - y).toString().padStart(2, ' ');
@@ -29,7 +30,9 @@ async function callGeminiForOmok(board, moveHistory, apiKey) {
     boardStr += `${r} ${line}\n`;
   }
 
-  const prompt = `현재 15x15 오목판 상태:
+  const prompt = `당신은 세계 최고의 15x15 오목(Gomoku) 마스터이자, 생생하고 위트 넘치는 실시간 해설자입니다.
+
+현재 15x15 오목판 상태:
 ${boardStr}
 
 ●: 흑돌 (상대방 사용자)
@@ -46,13 +49,13 @@ ${boardStr}
 
 반드시 다음 JSON 형식으로만 응답하세요:
 {
-  "x": 0~14 사이의 정수 (빈칸 좌표),
-  "y": 0~14 사이의 정수 (빈칸 좌표),
-  "comment": "상대방의 노림수를 꿰뚫어보고 당신의 이번 수 전략을 설명하는 자연스러운 한국어 한마디",
+  "x": 0~14 사이의 정수 (반드시 빈칸 좌표),
+  "y": 0~14 사이의 정수 (반드시 빈칸 좌표),
+  "comment": "상대방의 노림수를 짚어내고 당신의 이번 수 전략을 설명하는 자연스러운 한국어 한마디",
   "emotion": "attack" | "defend" | "thinking" | "win" 중 하나
 }`;
 
-  const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`;
+  const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${key}`;
 
   const resp = await fetch(apiUrl, {
     method: 'POST',
@@ -68,18 +71,18 @@ ${boardStr}
 
   if (!resp.ok) {
     const errText = await resp.text();
-    throw new Error(`Gemini API 오류 (${resp.status}): ${errText}`);
+    throw new Error(`[${modelName}] API 오류 (${resp.status}): ${errText}`);
   }
 
   const data = await resp.json();
   const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-  if (!text) throw new Error('Gemini 응답 텍스트 없음');
+  if (!text) throw new Error(`${modelName} 응답 텍스트 없음`);
 
   const parsed = JSON.parse(text);
 
-  // 안전 검사: 만약 이미 돌이 놓인 곳을 골랐다면 인근 빈칸으로 자동 보정
+  // 안전 검사: 이미 돌이 놓인 곳이면 인근 빈칸으로 자동 보정
   if (board[parsed.y][parsed.x] !== 0) {
-    console.warn(`[Gemini 경고] ${parsed.x}, ${parsed.y}에 이미 돌이 있습니다. 인근 빈칸을 탐색합니다.`);
+    console.warn(`[${modelName} 경고] (${parsed.x}, ${parsed.y})에 이미 돌이 있습니다. 인근 빈칸을 탐색합니다.`);
     const fallback = findNeighborEmpty(board, lastMove.x, lastMove.y);
     parsed.x = fallback.x;
     parsed.y = fallback.y;
@@ -137,29 +140,31 @@ wss.on('connection', (ws) => {
     try {
       const data = JSON.parse(raw);
 
-      if (data.type === 'SET_API_KEY') {
-        savedApiKey = data.apiKey;
-        console.log('[API 키 설정] Gemini API 키가 브라우저로부터 등록되었습니다.');
+      if (data.type === 'SET_CONFIG') {
+        if (data.apiKey) savedApiKey = data.apiKey;
+        if (data.model) savedModel = data.model;
+        console.log(`[설정 업데이트] 모델: ${savedModel} | API 키 등록 완료`);
         return;
       }
 
       // 🚀 Webhook 착수 이벤트 수신!
       if (data.type === 'WEBHOOK_MOVE') {
-        const { x, y, board, moveHistory, apiKey } = data;
+        const { x, y, board, moveHistory, apiKey, model } = data;
+        const currentModel = model || savedModel || 'gemini-3.6-flash';
         const colLetter = String.fromCharCode(65 + x);
         const rowNum = 15 - y;
 
         console.log(`\n======================================================`);
         console.log(`🔔 [Webhook 수신] 사용자 착수: ${colLetter}${rowNum} (${x}, ${y})`);
-        console.log(`✨ Google Gemini 2.0 Flash로 수읽기 요청 전송 중...`);
+        console.log(`✨ Google ${currentModel}로 수읽기 요청 전송 중...`);
 
         const keyToUse = apiKey || savedApiKey;
         if (!keyToUse) {
-          console.log('⚠️ API 키 누락: 사용자에게 키 입력을 요청합니다.');
+          console.log('⚠️ API 키 누락');
           ws.send(JSON.stringify({
             tool: 'post_ai_comment',
             args: {
-              message: '🔑 상단의 Gemini API Key 입력창에 키를 입력하고 [키 저장]을 눌러주세요! 그러면 제가 즉시 수읽기를 하고 착수합니다.',
+              message: '🔑 상단의 Gemini API Key 입력창에 키를 입력하고 [설정 저장]을 눌러주세요!',
               emotion: 'thinking'
             }
           }));
@@ -167,12 +172,12 @@ wss.on('connection', (ws) => {
         }
 
         try {
-          // 진짜 Google Gemini 2.0 호출!
-          const decision = await callGeminiForOmok(board, moveHistory, keyToUse);
+          // 선택된 Gemini 모델 호출!
+          const decision = await callGeminiForOmok(board, moveHistory, keyToUse, currentModel);
           const aiCol = String.fromCharCode(65 + decision.x);
           const aiRow = 15 - decision.y;
 
-          console.log(`>>> ✨ [Gemini 응답 수신!]`);
+          console.log(`>>> ✨ [${currentModel} 응답 수신!]`);
           console.log(`    착수 좌표: ${aiCol}${aiRow} (${decision.x}, ${decision.y})`);
           console.log(`    감정 상태: ${decision.emotion}`);
           console.log(`    해설 멘트: "${decision.comment}"`);
@@ -191,11 +196,11 @@ wss.on('connection', (ws) => {
           }));
 
         } catch (apiErr) {
-          console.error('Gemini API 호출 실패:', apiErr.message);
+          console.error(`[${currentModel}] API 호출 실패:`, apiErr.message);
           ws.send(JSON.stringify({
             tool: 'post_ai_comment',
             args: {
-              message: `⚠️ Gemini API 호출 오류: ${apiErr.message}`,
+              message: `⚠️ ${apiErr.message}`,
               emotion: 'thinking'
             }
           }));

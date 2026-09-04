@@ -22,7 +22,7 @@
     header h1 { font-size: 1.5rem; color: #fff; display: flex; align-items: center; justify-content: center; gap: 8px; }
     header p { color: #8b949e; font-size: 0.82rem; margin-top: 4px; }
 
-    /* API Key 설정 바 */
+    /* API Key & 모델 선택 바 */
     .api-key-bar {
       background: #161b22;
       border: 1px solid var(--border);
@@ -37,19 +37,34 @@
       box-shadow: 0 4px 12px rgba(0,0,0,0.3);
       flex-wrap: wrap;
     }
-    .api-key-bar label { font-size: 0.85rem; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 6px; }
+    .bar-group { display: flex; align-items: center; gap: 8px; }
+    .bar-label { font-size: 0.82rem; font-weight: 700; color: #fff; white-space: nowrap; }
+    
     .api-key-input {
       flex: 1;
-      min-width: 240px;
+      min-width: 220px;
       background: #0d1117;
       border: 1px solid var(--border);
       border-radius: 6px;
       padding: 7px 10px;
       color: #fff;
-      font-size: 0.85rem;
+      font-size: 0.82rem;
       font-family: monospace;
     }
     .api-key-input:focus { outline: none; border-color: var(--accent); }
+
+    .model-select {
+      background: #0d1117;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 7px 10px;
+      color: #58a6ff;
+      font-size: 0.82rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .model-select:focus { outline: none; border-color: var(--accent); }
+
     .btn-save-key {
       background: #238636;
       border: 1px solid rgba(240,246,252,0.1);
@@ -59,9 +74,10 @@
       font-size: 0.82rem;
       font-weight: 600;
       cursor: pointer;
+      white-space: nowrap;
     }
     .btn-save-key:hover { background: #2ea043; }
-    .key-status { font-size: 0.8rem; font-weight: 600; }
+    .key-status { font-size: 0.78rem; font-weight: 600; white-space: nowrap; }
     .key-status.ready { color: var(--green); }
     .key-status.missing { color: #d29922; }
 
@@ -244,14 +260,28 @@
 
   <header>
     <h1>⚫⚪ WebMCP × Google Gemini 실시간 AI 오목</h1>
-    <p>착수 즉시 <strong>Webhook</strong>이 발송되어, <strong>진짜 Google Gemini 2.0 AI</strong>가 수읽기 코멘트와 함께 백돌을 둡니다.</p>
+    <p>착수 즉시 <strong>Webhook</strong>이 발송되어, <strong>Google Gemini AI</strong>가 수읽기 코멘트와 함께 백돌을 둡니다.</p>
   </header>
 
-  <!-- API Key 입력 바 -->
+  <!-- API Key & 모델 선택 바 -->
   <div class="api-key-bar">
-    <label for="apiKeyInput">🔑 Gemini API Key:</label>
-    <input type="password" id="apiKeyInput" class="api-key-input" placeholder="AI Studio에서 발급받은 Gemini API 키 입력 (AIzaSy...)">
-    <button class="btn-save-key" onclick="saveApiKey()">키 저장</button>
+    <div class="bar-group">
+      <span class="bar-label">🤖 AI 모델:</span>
+      <select id="modelSelect" class="model-select" onchange="onModelChange()">
+        <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+        <option value="gemini-3.5-flash">Gemini 3.5 Flash</option>
+        <option value="gemini-3.6-flash" selected>Gemini 3.6 Flash (권장)</option>
+        <option value="gemini-3.7-flash">Gemini 3.7 Flash</option>
+        <option value="gemini-3.8-flash">Gemini 3.8 Flash</option>
+      </select>
+    </div>
+
+    <div class="bar-group" style="flex: 1;">
+      <span class="bar-label">🔑 API Key:</span>
+      <input type="password" id="apiKeyInput" class="api-key-input" placeholder="AI Studio 키 입력 (AIzaSy...)">
+    </div>
+
+    <button class="btn-save-key" onclick="saveApiKey()">설정 저장</button>
     <span class="key-status missing" id="keyStatusText">⚠️ API 키 필요</span>
   </div>
 
@@ -269,12 +299,12 @@
         <div class="ai-header">
           <div class="ai-avatar" id="aiAvatar">✨</div>
           <div class="ai-name-box">
-            <div class="ai-name">Google Gemini 2.0 Flash</div>
+            <div class="ai-name" id="aiModelNameTitle">Google Gemini 3.6 Flash</div>
             <div class="ai-status-badge" id="aiLiveStatus">● 준비 완료 (수읽기 대기 중)</div>
           </div>
         </div>
         <div class="ai-bubble" id="aiBubble">
-          "상단에 Gemini API 키를 입력하시고 바둑판에 첫 수를 두어보세요! Webhook을 통해 실시간으로 수읽기 분석을 남기며 대국하겠습니다."
+          "상단에 Gemini API 키를 저장하시고 바둑판에 첫 수를 두어보세요! Webhook을 통해 실시간으로 수읽기 분석을 남기며 대국하겠습니다."
         </div>
       </div>
 
@@ -289,7 +319,7 @@
           </div>
           <div class="player-box" id="aiBox">
             <div class="player-avatar">🤖</div>
-            <div class="player-name">Gemini AI (백돌)</div>
+            <div class="player-name" id="aiBoxPlayerName">Gemini (백돌)</div>
             <div class="player-stone"><span class="stone-badge stone-white"></span> 후공</div>
           </div>
         </div>
@@ -329,30 +359,55 @@
     let moveHistory = [];
     let gameOver = false;
 
-    // API 키 관리
-    function loadApiKey() {
+    // API 키 및 모델 관리
+    function loadConfig() {
       const key = localStorage.getItem('GEMINI_API_KEY') || '';
+      const model = localStorage.getItem('GEMINI_MODEL') || 'gemini-3.6-flash';
+      
+      document.getElementById('modelSelect').value = model;
+      updateModelUI(model);
+
       if (key) {
         document.getElementById('apiKeyInput').value = key;
-        document.getElementById('keyStatusText').textContent = '✅ API 키 준비 완료';
+        document.getElementById('keyStatusText').textContent = '✅ 준비 완료';
         document.getElementById('keyStatusText').className = 'key-status ready';
       }
     }
 
+    function onModelChange() {
+      const model = document.getElementById('modelSelect').value;
+      localStorage.setItem('GEMINI_MODEL', model);
+      updateModelUI(model);
+    }
+
+    function updateModelUI(model) {
+      const modelMap = {
+        'gemini-2.5-flash': 'Google Gemini 2.5 Flash',
+        'gemini-3.5-flash': 'Google Gemini 3.5 Flash',
+        'gemini-3.6-flash': 'Google Gemini 3.6 Flash',
+        'gemini-3.7-flash': 'Google Gemini 3.7 Flash',
+        'gemini-3.8-flash': 'Google Gemini 3.8 Flash'
+      };
+      const title = modelMap[model] || model;
+      document.getElementById('aiModelNameTitle').textContent = title;
+      document.getElementById('aiBoxPlayerName').textContent = `${model.split('-')[1]} Flash (백)`;
+    }
+
     function saveApiKey() {
       const key = document.getElementById('apiKeyInput').value.trim();
+      const model = document.getElementById('modelSelect').value;
       if (!key) {
         alert('API 키를 입력해주세요!');
         return;
       }
       localStorage.setItem('GEMINI_API_KEY', key);
-      document.getElementById('keyStatusText').textContent = '✅ API 키 준비 완료';
+      localStorage.setItem('GEMINI_MODEL', model);
+      document.getElementById('keyStatusText').textContent = '✅ 준비 완료';
       document.getElementById('keyStatusText').className = 'key-status ready';
-      document.getElementById('aiBubble').textContent = 'API 키가 저장되었습니다! 바둑판에 흑돌 첫 수를 두어주세요!';
+      document.getElementById('aiBubble').textContent = `[${model}] 모델이 설정되었습니다! 바둑판에 흑돌 첫 수를 두어주세요!`;
       
-      // 서버로 API 키 전달
       if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'SET_API_KEY', apiKey: key }));
+        ws.send(JSON.stringify({ type: 'SET_CONFIG', apiKey: key, model }));
       }
     }
 
@@ -480,7 +535,7 @@
       if (actor === 'Human') {
         div.innerHTML = `<span class="log-num">#${turnNum}</span> <span class="log-human">👤 사용자(흑)</span>: ${coord} ${note}`;
       } else {
-        div.innerHTML = `<span class="log-num">#${turnNum}</span> <span class="log-ai">✨ Gemini(백)</span>: ${coord} ${note}`;
+        div.innerHTML = `<span class="log-num">#${turnNum}</span> <span class="log-ai">✨ AI(백)</span>: ${coord} ${note}`;
       }
       logBox.prepend(div);
       document.getElementById('moveCountText').textContent = `총 ${moveHistory.length}수`;
@@ -590,7 +645,7 @@
       }
     }
 
-    // 마우스 및 터치 착수 (착수 시 Webhook 자동 발송!)
+    // 마우스 및 터치 착수 (Webhook 발송)
     function handlePointerAction(clientX, clientY) {
       if (gameOver || currentTurn !== 1) return;
 
@@ -621,19 +676,21 @@
         currentTurn = 2;
         updateTurnDisplay();
 
-        // Gemini 수읽기 알림
-        document.getElementById('aiLiveStatus').textContent = '● Gemini 2.0 수읽기 중...';
-        document.getElementById('aiBubble').textContent = `사용자님이 ${String.fromCharCode(65 + x)}${15 - y} 자리에 두셨습니다. Webhook을 통해 Gemini가 최적의 수와 해설을 계산 중입니다...`;
-
-        // 🚀 Webhook 발송 (서버를 통해 Gemini API로 즉시 전달!)
+        const model = document.getElementById('modelSelect').value;
         const apiKey = localStorage.getItem('GEMINI_API_KEY') || '';
+
+        document.getElementById('aiLiveStatus').textContent = `● ${model} 수읽기 중...`;
+        document.getElementById('aiBubble').textContent = `사용자님이 ${String.fromCharCode(65 + x)}${15 - y} 자리에 두셨습니다. Webhook을 통해 ${model}가 최적의 수와 해설을 계산 중입니다...`;
+
+        // 🚀 Webhook 발송 (선택된 모델과 함께 전송)
         if (ws && ws.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify({
             type: 'WEBHOOK_MOVE',
             x, y,
             board,
             moveHistory,
-            apiKey
+            apiKey,
+            model
           }));
         }
       }
@@ -653,8 +710,9 @@
 
     ws.onopen = () => {
       const apiKey = localStorage.getItem('GEMINI_API_KEY') || '';
+      const model = localStorage.getItem('GEMINI_MODEL') || 'gemini-3.6-flash';
       if (apiKey) {
-        ws.send(JSON.stringify({ type: 'SET_API_KEY', apiKey }));
+        ws.send(JSON.stringify({ type: 'SET_CONFIG', apiKey, model }));
       }
     };
 
@@ -669,7 +727,7 @@
       } catch (err) {}
     };
 
-    loadApiKey();
+    loadConfig();
     drawBoard();
   </script>
 </body>
